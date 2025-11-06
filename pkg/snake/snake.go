@@ -25,20 +25,24 @@ type Position struct {
 }
 
 type Snake struct {
-	writer               bufio.Writer
-	height, width        int
-	snakeChar, spaceChar rune
-	snakeSize            int
-	lOffset              int
-	widthCharMulti       int
-	snakeBody            []Position
-	direction            Direction
-	foodPos              Position
-	solving              bool
-	running              bool
+	writer         bufio.Writer
+	height         int
+	width          int
+	snakeChar      rune
+	spaceChar      rune
+	foodChar       rune
+	snakeSize      int
+	lOffset        int
+	widthCharMulti int
+	snakeBody      []Position
+	direction      Direction
+	foodPos        Position
+	solving        bool
+	running        bool
 }
 
-func NewSnake(writer bufio.Writer, height, width, leftOffset int, doubleCharWidth bool, snakeChar, spaceChar rune) Snake {
+func NewSnake(writer bufio.Writer, height, width, leftOffset int,
+	doubleCharWidth bool, snakeChar, spaceChar, foodChar rune) Snake {
 	var body []Position
 	body = append(body, Position{X: 0, Y: 0})
 
@@ -55,6 +59,7 @@ func NewSnake(writer bufio.Writer, height, width, leftOffset int, doubleCharWidt
 		width:          realWidth,
 		snakeChar:      snakeChar,
 		spaceChar:      spaceChar,
+		foodChar:       foodChar,
 		snakeSize:      1,
 		lOffset:        leftOffset,
 		widthCharMulti: widthCharMulti,
@@ -75,7 +80,7 @@ func (s *Snake) SetDirection(dir Direction) error {
 
 	// TODO: when moving too fast, I die
 	// Ex.: going down and doing d+w
-	// The set direction is chaging the direction bypassing this validation
+	// The set direction is changing the direction bypassing this validation
 	// Tick did not happen when the second hey is pressed
 	if (s.direction == Up && dir == Down) ||
 		(s.direction == Down && dir == Up) ||
@@ -95,7 +100,7 @@ func (s *Snake) Start(solve bool) error {
 	s.writer.WriteString("\033[2J\033[H")
 	s.solving = solve
 	s.running = true
-	s.printSnake()
+	s.printGame()
 	return nil
 }
 
@@ -116,7 +121,7 @@ func (s *Snake) Tick() error {
 		s.snakeSize++
 		s.createFood()
 	}
-	s.updatePosition(s.foodPos, s.snakeChar)
+	s.updatePosition(s.foodPos, s.foodChar)
 
 	if s.collidedWithBody() {
 		return errors.New("Game Over")
@@ -127,7 +132,7 @@ func (s *Snake) Tick() error {
 	return e
 }
 
-func (s *Snake) printSnake() {
+func (s *Snake) printGame() {
 	leftPadding := strings.Repeat(" ", s.lOffset)
 	for y := range s.height {
 		row := make([]string, s.width)
@@ -167,7 +172,7 @@ func (s *Snake) move() {
 		newPosition.X = s.width - 1
 	}
 
-	utils.Assert(len(s.snakeBody) == s.snakeSize, "Size of the snake should be equals to size of body")
+	utils.Assert(len(s.snakeBody) == s.snakeSize, "Size of the snake should be equal to size of body")
 
 	newBody = append(newBody, newPosition)
 	newBody = append(newBody, s.snakeBody[:s.snakeSize-1]...)
@@ -209,7 +214,7 @@ func (s *Snake) smartMove() {
 		s.direction = Down
 	}
 
-	utils.Assert(len(s.snakeBody) == s.snakeSize, "Size of the snake should be equals to size of body")
+	utils.Assert(len(s.snakeBody) == s.snakeSize, "Size of the snake should be equal to size of body")
 
 	newBody = append(newBody, newPosition)
 	newBody = append(newBody, s.snakeBody[:s.snakeSize-1]...)
@@ -226,6 +231,8 @@ func (s *Snake) createFood() {
 	foodX := rand.IntN(s.width / s.widthCharMulti)
 	foodY := rand.IntN(s.height)
 
+	// TODO: maybe optimize this logic?
+	// Maybe get all the possible positions and random on an array?
 	for _, v := range s.snakeBody {
 		if v.X == foodX && v.Y == foodY {
 			s.createFood()
@@ -240,6 +247,7 @@ func (s *Snake) createFood() {
 func (s *Snake) collidedWithBody() bool {
 	head := s.snakeBody[0]
 
+	// TODO: maybe optimize this validation?
 	for i := 1; i < len(s.snakeBody); i++ {
 		if head == s.snakeBody[i] {
 			return true
