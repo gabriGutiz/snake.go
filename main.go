@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gabriGutiz/snake.go/pkg/snake"
@@ -12,7 +13,7 @@ import (
 )
 
 func runPlay(s snake.Snake, ticker time.Ticker, keyPressChan chan byte) error {
-	err := s.Start(false)
+	err := s.Start()
 	if err != nil {
 		return err
 	}
@@ -42,8 +43,10 @@ func runPlay(s snake.Snake, ticker time.Ticker, keyPressChan chan byte) error {
 	}
 }
 
-func runSolve(s snake.Snake, ticker time.Ticker, keyPressChan chan byte) error {
-	err := s.Start(true)
+func runSolve(s snake.Snake, solutionMethod snake.SolutionMethod,
+	ticker time.Ticker, keyPressChan chan byte) error {
+
+	err := s.StartSolve(solutionMethod)
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,9 @@ func runSolve(s snake.Snake, ticker time.Ticker, keyPressChan chan byte) error {
 	}
 }
 
-func start(tick, height, width, leftOffset int, doubleCharWidth bool, snakeChar, spaceChar, foodChar rune, solve bool) error {
+func start(tick, height, width, leftOffset int, doubleCharWidth bool,
+	snakeChar, spaceChar, foodChar rune, solve bool,
+	solutionMethod snake.SolutionMethod) error {
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		fmt.Println("Error setting raw mode:", err)
@@ -98,7 +103,7 @@ func start(tick, height, width, leftOffset int, doubleCharWidth bool, snakeChar,
 		doubleCharWidth, snakeChar, spaceChar, foodChar)
 
 	if solve {
-		err = runSolve(s, *ticker, keyPressChan)
+		err = runSolve(s, solutionMethod, *ticker, keyPressChan)
 	} else {
 		err = runPlay(s, *ticker, keyPressChan)
 	}
@@ -114,7 +119,7 @@ var pLeftOffsetFlag = playCmd.Int("l-off", 10, "an offset of whitespaces on the 
 var pSpaceCharFlag = playCmd.String("space-char", "░", "char used to make the spacing")
 var pSnakeCharFlag = playCmd.String("snake-char", "█", "char used to make the snake")
 var pFoodCharFlag = playCmd.String("food-char", "█", "char used to make the foods")
-var pDCharWidthFlag = playCmd.Bool("double-char-w", true, "use two chars on horizontal")
+var pDCharWidthFlag = playCmd.Bool("double-char-w", false, "use two chars on horizontal")
 
 var solveCmd = flag.NewFlagSet("solve", flag.ExitOnError)
 var sHeightFlag = solveCmd.Int("height", 10, "total height of the snake area")
@@ -124,7 +129,8 @@ var sLeftOffsetFlag = solveCmd.Int("l-off", 10, "an offset of whitespaces on the
 var sSpaceCharFlag = solveCmd.String("space-char", "░", "char used to make the spacing")
 var sSnakeCharFlag = solveCmd.String("snake-char", "█", "char used to make the snake")
 var sFoodCharFlag = solveCmd.String("food-char", "█", "char used to make the foods")
-var sDCharWidthFlag = solveCmd.Bool("double-char-w", true, "use two chars on horizontal")
+var sDCharWidthFlag = solveCmd.Bool("double-char-w", false, "use two chars on horizontal")
+var sModeFlag = solveCmd.String("mode", "dumb", "the solve method to be run can be 'dumb'")
 
 func main() {
 	if len(os.Args) < 2 {
@@ -140,12 +146,13 @@ func main() {
 		playCmd.Parse(os.Args[2:])
 		err = start(*pTickFlag, *pHeightFlag, *pWidthFlag, *pLeftOffsetFlag,
 			*pDCharWidthFlag, []rune(*pSnakeCharFlag)[0], []rune(*pSpaceCharFlag)[0],
-			[]rune(*pFoodCharFlag)[0], false)
+			[]rune(*pFoodCharFlag)[0], false, "")
 	case "solve":
 		solveCmd.Parse(os.Args[2:])
+		solMode := strings.ToLower(*sModeFlag)
 		err = start(*sTickFlag, *sHeightFlag, *sWidthFlag, *sLeftOffsetFlag,
 			*sDCharWidthFlag, []rune(*sSnakeCharFlag)[0], []rune(*sSpaceCharFlag)[0],
-			[]rune(*sFoodCharFlag)[0], true)
+			[]rune(*sFoodCharFlag)[0], true, snake.SolutionMethod(solMode))
 	default:
 		fmt.Println("expected 'play' or 'solve' subcommands")
 		return

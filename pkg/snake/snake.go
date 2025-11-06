@@ -11,6 +11,12 @@ import (
 	"github.com/gabriGutiz/snake.go/pkg/utils"
 )
 
+type SolutionMethod string
+
+const (
+	Dumb SolutionMethod = "dumb"
+)
+
 type Direction int
 
 const (
@@ -38,6 +44,7 @@ type Snake struct {
 	direction      Direction
 	foodPos        Position
 	solving        bool
+	solMethod      SolutionMethod
 	running        bool
 }
 
@@ -92,13 +99,26 @@ func (s *Snake) SetDirection(dir Direction) error {
 	return nil
 }
 
-func (s *Snake) Start(solve bool) error {
+func (s *Snake) StartSolve(method SolutionMethod) error {
 	if s.running {
 		return errors.New("Game is already running")
 	}
 
 	s.writer.WriteString("\033[2J\033[H")
-	s.solving = solve
+	s.solving = true
+	s.running = true
+	s.solMethod = method
+	s.printGame()
+	return nil
+}
+
+func (s *Snake) Start() error {
+	if s.running {
+		return errors.New("Game is already running")
+	}
+
+	s.writer.WriteString("\033[2J\033[H")
+	s.solving = false
 	s.running = true
 	s.printGame()
 	return nil
@@ -106,30 +126,46 @@ func (s *Snake) Start(solve bool) error {
 
 func (s *Snake) Tick() error {
 	if !s.running {
-		return errors.New("Game has not been started")
+		return errors.New("Game has not been started or has been ended")
+	}
+
+	if s.solving {
+		s.makeMoveSolving()
 	}
 
 	oldTail := s.snakeBody[len(s.snakeBody)-1]
 	s.move()
 	newHead := s.snakeBody[0]
 
-	s.updatePosition(oldTail, s.spaceChar)
 	s.updatePosition(newHead, s.snakeChar)
+	s.updatePosition(oldTail, s.spaceChar)
 
+	createNewFood := false
 	if newHead == s.foodPos {
 		s.snakeBody = append(s.snakeBody, oldTail)
 		s.snakeSize++
+		s.updatePosition(oldTail, s.snakeChar)
+		createNewFood = true
+	}
+
+	if s.collidedWithBody() || s.snakeSize == s.height*s.width {
+		return errors.New("Game Over")
+	}
+
+	if createNewFood {
 		s.createFood()
 	}
 	s.updatePosition(s.foodPos, s.foodChar)
 
-	if s.collidedWithBody() {
-		return errors.New("Game Over")
-	}
-
 	e := s.writer.Flush()
-
 	return e
+}
+
+func (s *Snake) makeMoveSolving() {
+	switch s.solMethod {
+	case Dumb:
+		s.makeMoveSolvingDumb()
+	}
 }
 
 func (s *Snake) printGame() {
@@ -172,7 +208,8 @@ func (s *Snake) move() {
 		newPosition.X = s.width - 1
 	}
 
-	utils.Assert(len(s.snakeBody) == s.snakeSize, "Size of the snake should be equal to size of body")
+	utils.Assert(len(s.snakeBody) == s.snakeSize,
+		"Size of the snake should be equal to size of body")
 
 	newBody = append(newBody, newPosition)
 	newBody = append(newBody, s.snakeBody[:s.snakeSize-1]...)
@@ -180,46 +217,48 @@ func (s *Snake) move() {
 	s.snakeBody = newBody
 }
 
-func (s *Snake) smartMove() {
-	var newBody []Position
-	newPosition := s.snakeBody[0]
+func (s *Snake) makeMoveSolvingDumb() {
+	head := s.snakeBody[0]
 
-	if s.direction == Down {
-		newPosition.Y++
-	} else if s.direction == Up {
-		newPosition.Y--
-	} else if s.direction == Right {
-		newPosition.X++
-	} else if s.direction == Left {
-		newPosition.X--
+	if s.height%2 == 0 {
+		if head.X == 0 && s.direction == Down {
+			s.direction = Right
+		} else if head.X == s.width-1 && head.Y == 0 && s.direction == Right {
+			s.direction = Down
+		} else if head.X == s.width-1 && head.Y == s.height-1 && s.direction == Right {
+			s.direction = Down
+		} else if head.X == s.width-1 && head.Y == s.height-1 && s.direction == Down {
+			s.direction = Left
+		} else if head.X == s.width-1 && s.direction == Right {
+			s.direction = Down
+		} else if head.X == 0 && s.direction == Left {
+			s.direction = Up
+		} else if head.X == 0 && s.direction == Up {
+			s.direction = Right
+		} else if head.X == s.width-2 && head.Y != 0 && s.direction == Right {
+			s.direction = Up
+		} else if head.X == s.width-2 && s.direction == Up {
+			s.direction = Left
+		}
+	} else {
+		// TODO: fix
+		if head.X == 0 && head.Y == s.height-1 && s.direction == Down {
+			s.direction = Right
+		} else if head.X == s.width-1 && head.Y == s.height-1 && s.direction == Right {
+			s.direction = Up
+		} else if head.X == s.width-1 && s.direction == Up {
+			s.direction = Left
+		} else if head.X == 1 && head.Y != 0 && s.direction == Left {
+			s.direction = Up
+		} else if head.X == 1 && head.Y != 0 && s.direction == Up {
+			s.direction = Right
+		} else if head.X == 0 && head.Y == 0 && s.direction == Left {
+			s.direction = Down
+		} else if head.X == s.width-1 && s.direction == Right {
+			s.direction = Up
+		}
 	}
 
-	if newPosition.Y == s.height {
-		newPosition.Y = 0
-	} else if newPosition.Y < 0 {
-		newPosition.Y = s.height
-	} else if newPosition.X == s.width {
-		newPosition.X = 0
-	} else if newPosition.X < 0 {
-		newPosition.X = s.width
-	}
-
-	if newPosition.Y == s.height-1 && s.direction == Down {
-		s.direction = Right
-	} else if newPosition.Y == 0 && s.direction == Up {
-		s.direction = Left
-	} else if newPosition.X == s.width-1 && s.direction == Right {
-		s.direction = Up
-	} else if newPosition.X == 0 && s.direction == Left {
-		s.direction = Down
-	}
-
-	utils.Assert(len(s.snakeBody) == s.snakeSize, "Size of the snake should be equal to size of body")
-
-	newBody = append(newBody, newPosition)
-	newBody = append(newBody, s.snakeBody[:s.snakeSize-1]...)
-
-	s.snakeBody = newBody
 }
 
 func (s *Snake) updatePosition(pos Position, char rune) {
@@ -228,20 +267,30 @@ func (s *Snake) updatePosition(pos Position, char rune) {
 }
 
 func (s *Snake) createFood() {
-	foodX := rand.IntN(s.width / s.widthCharMulti)
-	foodY := rand.IntN(s.height)
-
-	// TODO: maybe optimize this logic?
-	// Maybe get all the possible positions and random on an array?
-	for _, v := range s.snakeBody {
-		if v.X == foodX && v.Y == foodY {
-			s.createFood()
-			return
+	possiblePositionsSize := s.height*s.width - s.snakeSize
+	utils.Assert(possiblePositionsSize > 0, "no space to new food")
+	possiblePositions := make([]Position, possiblePositionsSize)
+	i := 0
+	for y := range s.height {
+		for x := range s.width {
+			invalid := false
+			for _, b := range s.snakeBody {
+				if b.X == x && b.Y == y {
+					invalid = true
+					break
+				}
+			}
+			if !invalid {
+				possiblePositions[i] = Position{X: x, Y: y}
+				i++
+			}
 		}
 	}
 
-	s.foodPos.X = foodX
-	s.foodPos.Y = foodY
+	posIndex := rand.IntN(possiblePositionsSize)
+
+	s.foodPos.X = possiblePositions[posIndex].X
+	s.foodPos.Y = possiblePositions[posIndex].Y
 }
 
 func (s *Snake) collidedWithBody() bool {
@@ -249,7 +298,7 @@ func (s *Snake) collidedWithBody() bool {
 
 	// TODO: maybe optimize this validation?
 	for i := 1; i < len(s.snakeBody); i++ {
-		if head == s.snakeBody[i] {
+		if head.X == s.snakeBody[i].X && head.Y == s.snakeBody[i].Y {
 			return true
 		}
 	}
